@@ -1,17 +1,29 @@
 import pandas as pd
 import numpy as np
+from enum import Enum
+from math import log2
+
+
+class alternative(Enum):
+    GAIN = "gain"
+    GINI = "gini"
 
 class Node():
     def __init__(self, feature=None, children=None, TODO="Other information about that node you wana show and need."):
         # TODO: Initialize node attributes
+        self.feature = feature
+        self.children = children
         pass
 
+
+
 class DecisionTree():
-    def __init__(self, mode="gain or gini?", max_Depth=float("inf"), min_Samples=2,
+    def __init__(self, mode:alternative, max_Depth=float("inf"), min_Samples=2,
                  pruning_threshold="What is diffrent when change mode?", TODO="Any desired hyperparameters"):
        # You can change all class properties for better performance!
        # TODO: Initialize tree hyperparameters and root node
        pass
+
 
     def _create_Tree(self, X, Y, depth=0):
         num_Samples = len(Y)
@@ -28,7 +40,7 @@ class DecisionTree():
         # TODO: Create leaf node with predicted value
         return Node()
 
-    def _get_best_Feature(self, X, Y):
+    def _get_best_Feature(self, X, Y):  #X is dataframe of features,   Y is series of labels.
         if self.mode == "gain":
            # TODO: Calculate information gain for each feature
            pass
@@ -39,32 +51,70 @@ class DecisionTree():
         
         # TODO: Select and return best feature as Node
         pass
-        
-    def _information_Gain(self, feature, X, Y):
-        
-        def entropy(y):
+
+
+
+
+    # Some potential improvements:
+    # passing dataset instead of X and Y.   
+
+    # infogain is defined for a feature.
+    def _information_Gain(self, feature, X, Y): #X is the dataframe with all the feature columns.    #Y is a series of the label 
+        def entropy(y):   #y is a series for a label in dataset.
            # TODO: Calculate entropy for target variable
-           pass
-      
-        for value in feature.unique():
+
+            yes_counts = (y == "satisfied").sum()
+            total_counts = y.count()
+
+            fraction = yes_counts/total_counts
+
+            result = -fraction*log2(fraction) - (1-fraction)*log2(1-fraction)
+            return result
+
+        desired_column = X[feature]  #this is a series.
+        merged = pd.concat([desired_column, Y], axis=1) #this is a dataframe of 2 columns:one is the dataset's possible answers for the feature selected.
+                                                           #the other is the label corresponding to each sample of our dataset.  
+        
+        # calculating the sum of the entropies for each sub_dataframes filtered by different answers for that attribute:
+        subentropies_sum=0
+        for value in desired_column.unique():  #returns an array of the unique values that appear in that Series
             # TODO: Calculate weighted entropy for each value
-            pass
+            filtered_df = merged[merged[feature]==value] #filtering by row
+            weight = len(filtered_df)/len(merged)
+            subentropies_sum+=weight*entropy(filtered_df[Y])
         
         # TODO: Return information gain
-        pass
+        return entropy(Y) - subentropies_sum
     
-    def _gini_Split(self, feature, X, Y):
-        
-        def gini(y):
-           # TODO: Calculate gini impurity for target variable
-           pass
 
-        for value in feature.unique():
+
+
+    def _gini_Split(self, feature, X, Y): #feature is just the name of feature.
+        
+        def gini(y):  #y is a series of label given as an input
+           # TODO: Calculate gini impurity for target variable
+            #1- sigma(p(i)**2)
+            total_count = len(y)
+            yes_counts = (y == "satisfied").sum()
+            fraction = yes_counts/total_count
+            result = 1-(fraction**2 + (1-fraction)**2)
+            return result
+
+        desired_column = X[feature]
+        merged = pd.concat([desired_column,Y],axis=1)
+        
+        # Sum of the weighted gini's for sub_dataframes which is a rowly filtered version of main dataframe given as input
+        #  based on the unique answers of the feature given again as the input :
+        Sub_gini_sum = 0
+        for value in desired_column.unique():
             # TODO: Calculate weighted gini for each value
-            pass
+            filtered_df = merged[merged[feature]==value]
+            weight  =len(filtered_df)/len(merged)
+            Sub_gini_sum += weight*gini(filtered_df[Y])
+            
 
         # TODO: Return gini split value
-        pass
+        return gini(Y) - Sub_gini_sum
 
     def _calculate_Value(self, Y):
         # Where is it used and what does it do?
