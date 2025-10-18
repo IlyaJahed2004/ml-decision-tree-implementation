@@ -24,8 +24,8 @@ class DecisionTree():
        # TODO: Initialize tree hyperparameters and root node
        pass
 
-
-    def _create_Tree(self, X, Y, depth=0):
+    # Y is the label column and X is the dataframe of the attributes
+    def _create_Tree(self, X, Y, depth=0):   
         num_Samples = len(Y)
         
         # Check stopping conditions (Pre-Pruning)
@@ -33,6 +33,7 @@ class DecisionTree():
             best_Feature = self._get_best_Feature(X, Y)
             children = []
             # Check gain or gini!
+
             for (Xi, Yi) in best_Feature["feature_values"]:
                 # TODO: Recursively create child nodes
                 pass
@@ -41,17 +42,34 @@ class DecisionTree():
         return Node()
 
     def _get_best_Feature(self, X, Y):  #X is dataframe of features,   Y is series of labels.
-        if self.mode == "gain":
+        if self.mode == alternative.GAIN:
            # TODO: Calculate information gain for each feature
-           pass
-
-        elif self.mode == "gini":
+            max=float('-inf')
+            best_feature = ""
+            for feature in list(X.columns):
+                info_gain =self._information_Gain(feature,X,Y)
+                if(info_gain>max):
+                    max = info_gain
+                    best_feature = feature
+        
+        elif self.mode == alternative.GINI:
            # TODO: Calculate gini split for each feature
-           pass
+            max=float('-inf')
+            best_feature = ""
+            for feature in list(X.columns):
+                info_gain =self._gini_Split(feature,X,Y)
+                if(info_gain>max):
+                    max = info_gain
+                    best_feature = feature
         
         # TODO: Select and return best feature as Node
-        pass
-
+        # for now i put list of names of the children features no a node if required:
+        bestfeature_serie = X[best_feature]
+        merged_with_label = pd.concat([bestfeature_serie,Y],axis=1)
+        children_list = []
+        for uniqueval in merged_with_label[best_feature].unique().tolist():
+            children_list.append(uniqueval)
+        return Node(feature=best_feature ,children=children_list)
 
 
 
@@ -110,7 +128,7 @@ class DecisionTree():
             # TODO: Calculate weighted gini for each value
             filtered_df = merged[merged[feature]==value]
             weight  =len(filtered_df)/len(merged)
-            Sub_gini_sum += weight*gini(filtered_df[Y])
+            Sub_gini_sum += weight*gini(filtered_df[Y]) #passing a filtered series to the gini method.
             
 
         # TODO: Return gini split value
