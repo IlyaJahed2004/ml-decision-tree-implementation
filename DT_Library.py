@@ -79,62 +79,64 @@ class DecisionTree():
             children_list.append(uniqueval)
         return Node(feature=best_feature, children=children_list)
 
-    # notes for the infogain and ginisplit methods:
-        # Some potential improvements:
-        # passing dataset instead of X and Y.
+
 
     # infogain is defined for a feature.
-    def _information_Gain(self, feature, X, Y): #X is the dataframe with all the feature columns.    #Y is a series of the label 
-        # Make sure Y is a Series and has a usable name
-        if not isinstance(Y, pd.Series):
-            Y = pd.Series(Y)
+    # feature is given to the method as string.(It is the name of the feature)
+    def _information_Gain(self, feature, X, Y): #X is the dataframe with all the feature columns.    #Y is a series of the label (ir numpy array when test are running.)
 
-        # in our dataset it is not needed becuase we have the name for label column:
-        if Y.name is None:
+        if (isinstance(Y,pd.Series) and (Y.name is None)):
             Y = Y.rename("target") 
+
+        # Make sure Y is converted to numpy array just for optimization cases:
+
+        if not isinstance(Y, np.ndarray): # if it is not instance of numpy array we know it is a pandas serie
+            Y = Y.map({"satisfied": 1, "dissatisfied": 0, 1:1, 0:0})
+            Y = Y.to_numpy()
+
        
-        def entropy(y):   #y is a series for a label in dataset.
+        def entropy(y):   #in this version of code y is a numpy array of labels passed with the values "0" and "1"
            # TODO: Calculate entropy for target variable
-            #again this one is needed for our dataset because the unique values are satisfied and not satisfied:
-            y = y.map({"satisfied": 1, "dissatisfied": 0 ,1: 1, 0: 0})
             yes_counts = (y == 1).sum()
-            total_counts = y.count()
+            total_counts = len(y)
             fraction = yes_counts / total_counts
             if fraction == 0 or fraction == 1:
                 return 0
             result = -fraction * log2(fraction) - (1 - fraction) * log2(1 - fraction)
             return result
 
-        desired_column = X[feature]  #this is a series.
-        merged = pd.concat([desired_column, Y], axis=1) #this is a dataframe of 2 columns:one is the dataset's possible answers for the feature selected.
-                                                           #the other is the label corresponding to each sample of our dataset.  
+        desired_column = X[feature]  #this is a serie.
+        desired_nparray = desired_column.to_numpy() # convert the serie to a numpy array
+        merged = np.column_stack((desired_nparray, Y))   # it concatenates tow numpy array like this.it assumes to arrays like columns and concatenates by row.
+
         
         # calculating the sum of the entropies for each sub_dataframes filtered by different answers for that attribute:
         subentropies_sum = 0
-        for value in desired_column.unique():  #returns an array of the unique values that appear in that Series
+        for value in np.unique(desired_nparray):  #returns an array of the unique values that appear in that numpy array
             # TODO: Calculate weighted entropy for each value
-            filtered_df = merged[merged[feature] == value] #filtering by row
-            weight = len(filtered_df) / len(merged)
-            subentropies_sum += weight * entropy(filtered_df[Y.name].copy())
+            filtered_np = merged[merged[:,0] == value] #filtering by row for np arrays
+            weight = len(filtered_np) / len(merged)
+            subentropies_sum += weight * entropy(filtered_np[:,1])
         
+
         # TODO: Return information gain
-        return entropy(Y.copy()) - subentropies_sum
+        return entropy(Y) - subentropies_sum
     
 
-    def _gini_Split(self, feature, X, Y): #feature is just the name of feature.
-
-        # Make sure Y is a Series and has a usable name
-        if not isinstance(Y, pd.Series):
-            Y = pd.Series(Y)     
+    def _gini_Split(self, feature, X, Y): 
 
         # keyvalue error handling:
-        if Y.name is None:
+        if ((isinstance(Y,pd.Series)) and (Y.name is None)):
             Y = Y.rename("target")
 
-        def gini(y):  #y is a series of label given as an input
+        if not isinstance(Y, np.ndarray):
+            Y = Y.map({"satisfied": 1, "dissatisfied": 0})
+            Y = Y.to_numpy()     
+
+
+        def gini(y):  #y is an nparray passed to gini method
            # TODO: Calculate gini impurity for target variable
             #1- sigma(p(i)**2)
-            y = y.map({"satisfied": 1, "dissatisfied": 0 ,1: 1, 0: 0})
             total_count = len(y)
             yes_counts = (y == 1).sum()
             fraction = yes_counts / total_count
@@ -143,17 +145,19 @@ class DecisionTree():
             result = 1 - (fraction ** 2 + (1 - fraction) ** 2)
             return result
 
-        desired_column = X[feature]
-        merged = pd.concat([desired_column, Y], axis=1)
+        desired_column = X[feature]   #we get a serie here.
+        desired_nparray = desired_column.to_numpy()  #converted the serie to a nparray.
+        merged = np.column_stack((desired_nparray,Y))  #we have a 2-dimenstional array.the subarrays first element is for features values and the second element is for corresponding label.
         
+
         # Sum of the weighted gini's for sub_dataframes which is a rowly filtered version of main dataframe given as input
         #  based on the unique answers of the feature given again as the input :
         Sub_gini_sum = 0
-        for value in desired_column.unique():
+        for value in np.unique(desired_nparray):
             # TODO: Calculate weighted gini for each value
-            filtered_df = merged[merged[feature] == value]
+            filtered_df = merged[merged[:,0] == value]
             weight = len(filtered_df) / len(merged)
-            Sub_gini_sum += weight * gini(filtered_df[Y.name].copy()) #passing a filtered series to the gini method.
+            Sub_gini_sum += weight * gini(filtered_df[:,1]) 
             
 
         # TODO: Return gini split value
@@ -173,3 +177,17 @@ class DecisionTree():
 
         # TODO: Apply _move_Tree to each sample in X
         pass
+
+
+
+#  test case i used for debugging:
+
+# Y_test = pd.Series([0, 0, 1, 1, 0, 0, 0], name='target')
+# X_test = pd.DataFrame({
+#     'perfect_split': [0, 0, 1, 0, 2, 2, 2],
+#     'other': [10, 20, 30, 40, 10, 5, 15]
+# })
+# feature_test = 'perfect_split'
+# dt = DecisionTree(mode="gain")
+# result = dt._information_Gain(feature_test, X_test, Y_test)
+# print(result)
