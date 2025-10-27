@@ -5,11 +5,14 @@ from math import log2
 
 
 class Node():
-    def __init__(self, feature=None, children=None, TODO="Other information about that node you wana show and need."):
+    def __init__(self, feature=None, children=None,isleaf = False,parent=None,datasample_labels = None,answer=None TODO="Other information about that node you wana show and need."):
         # TODO: Initialize node attributes
         self.feature = feature
+        self.datasamples_labels = datasample_labels
         self.children = children
-        pass
+        self.is_leaf =isleaf
+        self.parent = parent
+        self.answer = answer
 
 
 class DecisionTree():
@@ -23,27 +26,75 @@ class DecisionTree():
         self.pruning_threshold = pruning_threshold
         self.root = None
 
+
     # Y is the label column and X is the dataframe of the attributes
     def _create_Tree(self, X, Y, depth=0):
+        all_features =list(X.columns)
         num_Samples = len(Y)
+
+        #helper method for edge cases in recursion:
+        def plurality_value(Y):   # Y is actually a numpy array
+            yes_counts = (Y == 1).sum()
+            total_counts = len(Y)
+            return {"Yes":yes_counts/total_counts , "No": total_counts-yes_counts/total_counts} #returning a dict of two probability.
+        
 
         # Check stopping conditions (Pre-Pruning)
         if num_Samples >= self.min_Samples and depth < self.max_Depth:
-            best_Feature = self._get_best_Feature(X, Y)
-            children = []
-            # Check gain or gini!
+            best_Feature_node = self._get_best_Feature(X, Y)   #best-feature here is a node containing the label and the dataframe of the remained attributes.
 
-            for (Xi, Yi) in best_Feature["feature_values"]:
+            all_features.remove(best_Feature_node.feature)
+
+            # children = []
+            # children = best_Feature.children
+
+            if(len(all_features)==0):
+                best_Feature_node.is_leaf=True
+                parentnode = best_Feature_node.parent
+                result = plurality_value(parentnode.datasample_labels)
+                probable_label = max(result, key=result.get)
+                best_Feature_node.answer = probable_label
+                return best_Feature_node
+
+            elif((Y=="satisfied").all()):
+                best_Feature_node.is_leaf =True
+                best_Feature_node.answer = "satisfied"
+                return best_Feature_node
+            
+            elif((Y=="dissatisfied").all()):
+                best_Feature_node.is_leaf =True
+                best_Feature_node.answer = "dissatisfied"
+                return best_Feature_node
+
+            elif(X.empty()):
+                # parent_node: i manipulated the node class in a way that it containes the samples too in itself so i can do plurality on that.
+                best_Feature_node.is_leaf=True
+                parentnode = best_Feature_node.parent
+                result = plurality_value(parentnode.datasample_labels)
+                probable_label = max(result , key=result.get)
+                return best_Feature_node
+
+
+            # Check gain or gini!
+            for child in best_Feature_node.children:
                 # TODO: Recursively create child nodes
-                pass
+                # the child here is only one unique value of the values we have for the selected attribute.i should retireve a dataframe and serie of label for this:
+                merged = pd.concatenate([X,Y],axis=1)
+                merged = merged[merged[best_Feature_node.feature]==child]  #this is a selection by row.
+
+                # this raw dataframe is for features and their datas not the labels and not the bestfeature column either:
+                df_raw = merged.loc[:, merged.columns != Y.name and merged.columns != best_Feature_node.feature]
+
+                # Recursively calling create_tree for the new df and corresponding labels:
+                self._create_Tree(df_raw, merged[Y.name])
 
         # TODO: Create leaf node with predicted value
         return Node()
 
 
     # X is dataframe of features,   Y is series of labels.
-    def _get_best_Feature(self, X, Y):
-
+    def _get_best_Feature(self, X, Y):                                  #i should manipulate this to return the datasample_labels of the bestfeature too.
+        datasample_labels = None
         # Ensuring that X is a dataframe and Y is a serie
         if isinstance(X, np.ndarray):
             X = pd.DataFrame(X)
@@ -60,6 +111,7 @@ class DecisionTree():
                     max_val = info_gain
                     best_feature = feature
 
+
         elif self.mode == "gini":
            # TODO: Calculate gini split for each feature
             max_val = float('-inf')
@@ -69,6 +121,8 @@ class DecisionTree():
                 if info_gain > max_val:
                     max_val = info_gain
                     best_feature = feature
+        
+
 
         # TODO: Select and return best feature as Node
         # for now i put list of names of the children features no a node if required:
@@ -77,9 +131,8 @@ class DecisionTree():
         children_list = []
         for uniqueval in merged_with_label[best_feature].unique().tolist():
             children_list.append(uniqueval)
-        return Node(feature=best_feature, children=children_list)
-
-
+        return Node(feature=best_feature,datasample_labels=Y,children=children_list)
+    
 
     # infogain is defined for a feature.
     # feature is given to the method as string.(It is the name of the feature)
@@ -107,7 +160,7 @@ class DecisionTree():
 
         desired_column = X[feature]  #this is a serie.
         desired_nparray = desired_column.to_numpy() # convert the serie to a numpy array
-        merged = np.column_stack((desired_nparray, Y))   # it concatenates tow numpy array like this.it assumes to arrays like columns and concatenates by row.
+        merged = np.column_stack((desired_nparray, Y))   # it concatenates two numpy array like this:it assumes two arrays like columns and concatenates by row.
 
         
         # calculating the sum of the entropies for each sub_dataframes filtered by different answers for that attribute:
@@ -159,7 +212,6 @@ class DecisionTree():
             weight = len(filtered_df) / len(merged)
             Sub_gini_sum += weight * gini(filtered_df[:,1]) 
             
-
         # TODO: Return gini split value
         return Sub_gini_sum
 
