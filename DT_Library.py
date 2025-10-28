@@ -5,14 +5,15 @@ from math import log2
 
 
 class Node():
-    def __init__(self, feature=None, children=None,isleaf = False,parent=None,datasample_labels = None,answer=None TODO="Other information about that node you wana show and need."):
+    def __init__(self, feature=None, children=None,isleaf = False,parent=None,datasample_labels = None,answer=None,edge_value= None):   # the edge value is the edge from a node's parent to itself.
         # TODO: Initialize node attributes
         self.feature = feature
-        self.datasamples_labels = datasample_labels
-        self.children = children
+        self.datasample_labels = datasample_labels
+        self.children = children                    #children should be given as node
         self.is_leaf =isleaf
         self.parent = parent
         self.answer = answer
+        self.edge_value = edge_value
 
 
 class DecisionTree():
@@ -26,32 +27,35 @@ class DecisionTree():
         self.pruning_threshold = pruning_threshold
         self.root = None
 
-
+    #For assigning the Root to the real root node in this tree:
+    def Create_Tree(self,X,Y):
+        self.root = self._create_Tree(X,Y,depth= 0)
+        return self.root
+    
     # Y is the label column and X is the dataframe of the attributes
     def _create_Tree(self, X, Y, depth=0):
         all_features =list(X.columns)
         num_Samples = len(Y)
 
-        #helper method for edge cases in recursion:
+
+        # helper method for edge cases in recursion:
         def plurality_value(Y):   # Y is actually a numpy array
             yes_counts = (Y == 1).sum()
             total_counts = len(Y)
-            return {"Yes":yes_counts/total_counts , "No": total_counts-yes_counts/total_counts} #returning a dict of two probability.
+            return {"Yes":yes_counts/total_counts , "No": (total_counts-yes_counts)/total_counts} #returning a dict of two probability.
         
 
         # Check stopping conditions (Pre-Pruning)
         if num_Samples >= self.min_Samples and depth < self.max_Depth:
             best_Feature_node = self._get_best_Feature(X, Y)   #best-feature here is a node containing the label and the dataframe of the remained attributes.
-
-            all_features.remove(best_Feature_node.feature)
-
-            # children = []
-            # children = best_Feature.children
+            childtrack= ""
+            best_Feature_node_children = []
 
             if(len(all_features)==0):
                 best_Feature_node.is_leaf=True
-                parentnode = best_Feature_node.parent
-                result = plurality_value(parentnode.datasample_labels)
+                best_Feature_node.edge_value = childtrack
+
+                result = plurality_value(best_Feature_node.datasample_labels)
                 probable_label = max(result, key=result.get)
                 best_Feature_node.answer = probable_label
                 return best_Feature_node
@@ -59,41 +63,60 @@ class DecisionTree():
             elif((Y=="satisfied").all()):
                 best_Feature_node.is_leaf =True
                 best_Feature_node.answer = "satisfied"
+                best_Feature_node.edge_value = childtrack
+
                 return best_Feature_node
             
             elif((Y=="dissatisfied").all()):
                 best_Feature_node.is_leaf =True
                 best_Feature_node.answer = "dissatisfied"
+                best_Feature_node.edge_value = childtrack
+
                 return best_Feature_node
 
             elif(X.empty()):
                 # parent_node: i manipulated the node class in a way that it containes the samples too in itself so i can do plurality on that.
                 best_Feature_node.is_leaf=True
                 parentnode = best_Feature_node.parent
+                best_Feature_node.edge_value = childtrack
+
                 result = plurality_value(parentnode.datasample_labels)
                 probable_label = max(result , key=result.get)
                 return best_Feature_node
-
+            
 
             # Check gain or gini!
             for child in best_Feature_node.children:
                 # TODO: Recursively create child nodes
-                # the child here is only one unique value of the values we have for the selected attribute.i should retireve a dataframe and serie of label for this:
-                merged = pd.concatenate([X,Y],axis=1)
-                merged = merged[merged[best_Feature_node.feature]==child]  #this is a selection by row.
-
-                # this raw dataframe is for features and their datas not the labels and not the bestfeature column either:
-                df_raw = merged.loc[:, merged.columns != Y.name and merged.columns != best_Feature_node.feature]
-
+                # the child here is only one unique value of the values we have for the selected attribute
+                remained_feature_columns = X.drop(best_Feature_node.feature,axis=1)
+                merged = pd.concat([remained_feature_columns,Y],axis=1)
+                filtered_by_child = merged[merged[best_Feature_node.feature]==child]  #this is a selection by row.
+                new_x = filtered_by_child.iloc[:,:-1]
+                new_y = filtered_by_child.iloc[:,-1]
+                childtrack = child
                 # Recursively calling create_tree for the new df and corresponding labels:
-                self._create_Tree(df_raw, merged[Y.name])
+                childnode = self._create_Tree(new_x, new_y,depth+1)
 
-        # TODO: Create leaf node with predicted value
-        return Node()
+                #when we reach here it means that we havent faced edge cases:
+                childnode.edge_value = child
+
+                childnode.parent = best_Feature_node
+                best_Feature_node_children.append(childnode)
+            best_Feature_node.children = best_Feature_node_children
+
+            return best_Feature_node
+        
+    # TODO: Create leaf node with predicted value
+        else:
+            result = plurality_value(Y)
+            probable_label = max(result, key=result.get)
+            return Node(isleaf=True, answer=probable_label, datasample_labels=Y)
 
 
-    # X is dataframe of features,   Y is series of labels.
-    def _get_best_Feature(self, X, Y):                                  #i should manipulate this to return the datasample_labels of the bestfeature too.
+
+    # X is dataframe of features,Y is series of labels.
+    def _get_best_Feature(self, X, Y): 
         datasample_labels = None
         # Ensuring that X is a dataframe and Y is a serie
         if isinstance(X, np.ndarray):
