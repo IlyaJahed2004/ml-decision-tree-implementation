@@ -70,43 +70,57 @@ class DecisionTree():
                 leaf_node = Node(isleaf=True, datasample_labels=Y ,parent=parent,answer=probable_label)
                 return leaf_node
             
-            else:
+            elif np.all(Y == 1):
+                leafnode = Node(isleaf=True,answer=1, parent=parent,datasample_labels=Y)
+                return leafnode
                 
+            elif np.all(Y==0):
+                leafnode = Node(isleaf=True,answer=0, parent=parent,datasample_labels=Y)
+                return leafnode
+            
+            else:
+
                 best_Feature_node = self._get_best_Feature(X, Y)   #best-feature here is a node containing the label and the dataframe of the remained attributes.
                 best_Feature_node.parent = parent
-                if np.all(Y == 1):
-                    best_Feature_node.is_leaf =True
-                    best_Feature_node.answer = 1      #1 is interpreted as "satisfied"
-                    return best_Feature_node
+
                 
+                for unique_val in best_Feature_node.children:
+                    # TODO: Recursively create child nodes
+                    # the child here is only one unique value of the values we have for the selected attribute
+                    featurename= best_Feature_node.feature
+                    local_Y = pd.Series(Y,name='target')
+                    X = X.reset_index(drop=True)
+                    merged = pd.concat([X,local_Y],axis=1)
+                    filtered_by_child = merged[merged[featurename]==unique_val]  #this is a selection by row.
 
-                elif np.all(Y==0):
-                    best_Feature_node.is_leaf =True
-                    best_Feature_node.answer = 0    #0 is interpreted as "dissatisfied"
-                    return best_Feature_node
+                    if filtered_by_child.empty:
+                        continue 
 
+                    # new_x = remaining features only
+                    new_x = filtered_by_child.drop(columns=[featurename, 'target'])
+                    # new_y = label column
+                    new_y = filtered_by_child['target']
+                    new_y = new_y.to_numpy()
 
-            for unique_val in best_Feature_node.children:
-                # TODO: Recursively create child nodes
-                # the child here is only one unique value of the values we have for the selected attribute
-                featurename= best_Feature_node.feature
-                local_Y = pd.Series(Y,name='target')
-                merged = pd.concat([X,local_Y],axis=1)
-                filtered_by_child = merged[merged[featurename]==unique_val]  #this is a selection by row.
-                # new_x = remaining features only
-                new_x = filtered_by_child.drop(columns=[featurename, 'target'])
-                # new_y = label column
-                new_y = filtered_by_child['target']
-                # Recursively calling create_tree for the new df and corresponding labels:
-                childnode = self._create_Tree(X= new_x, Y= new_y,parent= best_Feature_node,depth= depth+1)
-
-                #when we reach here it means that we havent faced edge cases:
-                childnode.edge_value = unique_val
-
-                best_Feature_node_children.append(childnode)
-            best_Feature_node.children = best_Feature_node_children
-
-            return best_Feature_node
+                    if len(np.unique(new_y)) == 1:
+                        leaf = Node(
+                            isleaf=True,
+                            answer=new_y[0],
+                            datasample_labels=new_y,
+                            parent=best_Feature_node,
+                            edge_value=unique_val
+                        )
+                        best_Feature_node_children.append(leaf)
+                        continue
+                    else:
+                        # Recursively calling create_tree for the new df and corresponding labels:
+                        childnode = self._create_Tree(X= new_x, Y= new_y,parent= best_Feature_node,depth= depth+1)
+                        #when we reach here it means that we havent faced edge cases:
+                        childnode.edge_value = unique_val
+                        best_Feature_node_children.append(childnode)
+                        
+                best_Feature_node.children = best_Feature_node_children
+                return best_Feature_node
         
     # TODO: Create leaf node with predicted value
         else:
@@ -154,7 +168,8 @@ class DecisionTree():
 
         # TODO: Select and return best feature as Node
         # for now i put list of names of the children features no a node if required:
-        bestfeature_serie = X[best_feature]
+        bestfeature_serie = X[best_feature].reset_index(drop=True)
+        local_Y = local_Y.reset_index(drop=True)
         merged_with_label = pd.concat([bestfeature_serie, local_Y], axis=1)
         children_list = []
         for uniqueval in merged_with_label[best_feature].unique().tolist():
@@ -260,8 +275,6 @@ class DecisionTree():
 
         # TODO: Apply _move_Tree to each sample in X
         pass
-
-
 
 #  test case i used for debugging:
 
