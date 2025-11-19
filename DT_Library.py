@@ -313,11 +313,6 @@ class DecisionTree():
 
 
     def predict(self, X):
-        """
-        Predict labels for rows in X.
-        Accepts: pandas.DataFrame, pandas.Series (single row), or numpy 2D array.
-        Returns: numpy.ndarray of int labels.
-        """
 
         # this is a helper method for plurality.here we have a node and based on the labels it has, we return the value with maximum counts.
         def plurality_label_from_node(node):
@@ -341,7 +336,7 @@ class DecisionTree():
 
         def _move_Tree(sample, node):
 
-            # defensive
+        
             if node is None:
                 return 0
 
@@ -352,7 +347,6 @@ class DecisionTree():
             if feature is None:
                 return plurality_label_from_node(node)
 
-            # sample may be missing the feature
             if feature not in sample:
                 return plurality_label_from_node(node)
 
@@ -366,7 +360,6 @@ class DecisionTree():
                 if not children or len(children) < 2:
                     return plurality_label_from_node(node)
                 try:
-                    # handle NaN or non-comparable => fallback
                     go_left = (val <= threshold)
                 except Exception:
                     return plurality_label_from_node(node)
@@ -382,18 +375,16 @@ class DecisionTree():
                 return plurality_label_from_node(node)
 
             for child in children:
-                # child's edge_value should hold the category that leads to that child
                 edgevalue = child.edgevalue
-                #  compare with exact match or string-equal 
                 if edgevalue == val or (edgevalue is not None and str(edgevalue) == str(val)):
                     return _move_Tree(sample, child)
 
-            # unseen category -> plurality fallback
             return plurality_label_from_node(node)
 
-        # --- input normalization ---
+
+
+        # input normalization
         if self.root is None:
-            # no tree fitted -> return zeros
             if X is None:
                 return np.array([], dtype=int)
             if isinstance(X, (pd.DataFrame, pd.Series)):
